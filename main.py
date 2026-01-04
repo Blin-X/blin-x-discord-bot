@@ -7,6 +7,13 @@ import json
 import aiosqlite
 import os
 import aiohttp
+from dotenv import load_dotenv
+
+load_dotenv()
+
+TOKEN = os.getenv('DISCORD_BOT_TOKEN')
+if not TOKEN:
+    raise ValueError("❌ DISCORD_BOT_TOKEN not found in environment variables")
 
 intents = disnake.Intents.default()
 intents.members = True
@@ -1337,6 +1344,328 @@ async def economystats(inter):
 
     await inter.response.send_message(embed=embed, ephemeral=True)
 
+@bot.slash_command(name="pr_guides", description="Post PR guides in channel (Admin only)")
+@commands.has_permissions(administrator=True)
+async def pr_guides(inter):
+    try:
+        if not inter.channel.permissions_for(inter.guild.me).send_messages:
+            error_embed = disnake.Embed(
+                description="❌ Bot doesn't have permission to send messages here",
+                color=disnake.Color.red()
+            )
+            await inter.response.send_message(embed=error_embed, ephemeral=True)
+            return
+        
+        guide_embed = disnake.Embed(
+            title="🎙️ PRIVATE VOICE CHANNELS - OFFICIAL GUIDE",
+            description="Complete guide to creating and managing private voice channels",
+            color=disnake.Color.gold(),
+            timestamp=datetime.datetime.now()
+        )
+        
+        guide_embed.add_field(
+            name="💰 PRICING SYSTEM",
+            value="```\n• 1-2 users: 1,500 cash\n• 3-8 users: 2,500 cash\n• 9-15 users: 5,000 cash\n• Unlimited: 10,000 cash\n```",
+            inline=False
+        )
+        
+        guide_embed.add_field(
+            name="🔧 CREATING A PRIVATE ROOM",
+            value="```/create_pr channel_name user_limit```\n**Examples:**\n• `/create_pr Gaming 5` → 5 users (2,500 cash)\n• `/create_pr Chill 0` → Unlimited users (10,000 cash)\n• `/create_pr Meeting 2` → 2 users (1,500 cash)",
+            inline=False
+        )
+        
+        guide_embed.add_field(
+            name="🆔 HOW TO GET CHANNEL ID",
+            value="```\n1. Enable Developer Mode:\n   Settings → Advanced → Developer Mode\n\n2. Right-click voice channel\n3. Click 'Copy ID'\n```\n**Save your Channel ID!**",
+            inline=False
+        )
+        
+        guide_embed.add_field(
+            name="⚙️ MANAGEMENT COMMANDS",
+            value="```\n• /delete_pr 123456789012345678\n   → Delete your channel (owner only)\n\n• /transfer_pr 123456789012345678 @User\n   → Transfer ownership to another user\n```",
+            inline=False
+        )
+        
+        guide_embed.add_field(
+            name="📝 IMPORTANT NOTES",
+            value="```\n✓ Check balance: /balance\n✓ Unlimited = user_limit: 0\n✓ Channel ID is required for management\n✓ No refunds after creation\n✓ Technical issues → Contact admins\n```",
+            inline=False
+        )
+        
+        guide_embed.add_field(
+            name="💡 PRO TIPS",
+            value="```\n• Choose name wisely (no spaces)\n• Backup your Channel ID\n• Consider user needs when setting limit\n• Transfer to trusted users only\n```",
+            inline=False
+        )
+        
+        guide_embed.set_footer(
+            text=f"Posted by {inter.author.name}",
+            icon_url=inter.author.display_avatar.url
+        )
+        
+        # Отправляем сообщение и сразу отвечаем
+        await inter.response.send_message("📖 Sending guide...", ephemeral=True)
+        await inter.channel.send(embed=guide_embed)
+        
+        await bot.log_moderation(f"📖 PR guide posted by {inter.author.mention} in #{inter.channel.name}")
+        
+    except Exception as e:
+        error_embed = disnake.Embed(
+            description=f"❌ Error: {str(e)}",
+            color=disnake.Color.red()
+        )
+        await inter.response.send_message(embed=error_embed, ephemeral=True)
+
+@pr_guides.error
+async def pr_guides_error(inter, error):
+    if isinstance(error, commands.MissingPermissions):
+        embed = disnake.Embed(
+            description="❌ Administrator permission required",
+            color=disnake.Color.red()
+        )
+        await inter.response.send_message(embed=embed, ephemeral=True)
+    else:
+        embed = disnake.Embed(
+            description=f"❌ Unexpected error: {error}",
+            color=disnake.Color.red()
+        )
+        await inter.response.send_message(embed=embed, ephemeral=True)
+        
+class SupportTicketModal(disnake.ui.Modal):
+    def __init__(self, problem_type):
+        self.problem_type = problem_type
+        components = [
+            disnake.ui.TextInput(
+                label="Describe your problem",
+                placeholder="Please describe the issue in detail...",
+                custom_id="problem_description",
+                style=disnake.TextInputStyle.paragraph,
+                min_length=20,
+                max_length=1000,
+                required=True
+            ),
+            disnake.ui.TextInput(
+                label="What have you tried?",
+                placeholder="Steps you've already taken to solve the issue...",
+                custom_id="tried_solutions",
+                style=disnake.TextInputStyle.paragraph,
+                max_length=500,
+                required=False
+            )
+        ]
+        
+        if problem_type == "blinx":
+            components.insert(0, disnake.ui.TextInput(
+                label="BlinX User ID",
+                placeholder="Enter your BlinX user ID...",
+                custom_id="blinx_id",
+                style=disnake.TextInputStyle.short,
+                required=True
+            ))
+            title = "BlinX Support Ticket"
+        else:
+            components.insert(0, disnake.ui.TextInput(
+                label="Discord Username",
+                placeholder="Enter your full Discord username (name#0000)...",
+                custom_id="discord_username",
+                style=disnake.TextInputStyle.short,
+                required=True
+            ))
+            title = "Discord Server Support Ticket"
+        
+        super().__init__(
+            title=title,
+            custom_id="support_ticket_modal",
+            timeout=300,
+            components=components
+        )
+    
+    async def callback(self, inter: disnake.ModalInteraction):
+        await inter.response.defer(ephemeral=True)
+        
+        user_id = inter.author.id
+        key = f"{user_id}_support_ticket"
+        now = datetime.datetime.now()
+        
+        if key in bot.cooldowns:
+            if bot.cooldowns[key] > now:
+                remaining = (bot.cooldowns[key] - now).total_seconds()
+                embed = disnake.Embed(
+                    description=f"❌ Please wait {int(remaining)} seconds before submitting another ticket",
+                    color=disnake.Color.red()
+                )
+                await inter.followup.send(embed=embed, ephemeral=True)
+                return
+        
+        bot.cooldowns[key] = now + datetime.timedelta(hours=1)
+        
+        values = inter.text_values
+        problem_desc = values.get("problem_description", "")
+        tried_solutions = values.get("tried_solutions", "None mentioned")
+        
+        if self.problem_type == "blinx":
+            blinx_id = values.get("blinx_id", "")
+            identifier = f"BlinX ID: `{blinx_id}`"
+        else:
+            discord_username = values.get("discord_username", "")
+            identifier = f"Discord: `{discord_username}`"
+        
+        ticket_id = str(inter.id)[:8]
+        
+        ticket_embed = disnake.Embed(
+            title="🎫 NEW SUPPORT TICKET",
+            color=disnake.Color.orange(),
+            timestamp=datetime.datetime.now()
+        )
+        
+        ticket_embed.add_field(name="USER", value=f"{inter.author.mention}\n`{inter.author.id}`", inline=True)
+        ticket_embed.add_field(name="TYPE", value=f"**{self.problem_type.upper()}**", inline=True)
+        ticket_embed.add_field(name="IDENTIFIER", value=identifier, inline=True)
+        ticket_embed.add_field(name="PROBLEM", value=problem_desc[:500] + ("..." if len(problem_desc) > 500 else ""), inline=False)
+        ticket_embed.add_field(name="ATTEMPTS", value=tried_solutions[:200], inline=False)
+        
+        ticket_embed.set_footer(text=f"Ticket ID: {ticket_id}")
+        
+        support_channel = bot.get_channel(1456677723022950533)
+        if support_channel:
+            await support_channel.send(embed=ticket_embed)
+        
+        confirm_embed = disnake.Embed(
+            title="✅ TICKET SUBMITTED",
+            description="Your support ticket has been received. An admin will contact you soon.",
+            color=disnake.Color.green()
+        )
+        confirm_embed.add_field(name="Ticket Type", value=self.problem_type.capitalize(), inline=True)
+        confirm_embed.add_field(name="Cooldown", value="1 hour", inline=True)
+        confirm_embed.add_field(name="Ticket ID", value=f"`{ticket_id}`", inline=True)
+        
+        await inter.followup.send(embed=confirm_embed, ephemeral=True)
+        
+        await bot.log_moderation(f"🎫 Support ticket submitted by {inter.author.mention} ({self.problem_type}) | ID: {ticket_id}")
+
+class SupportButtonView(disnake.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+    
+    @disnake.ui.button(label="BlinX Issue", style=disnake.ButtonStyle.blurple, emoji="🌐", custom_id="blinx_support")
+    async def blinx_support(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
+        await inter.response.send_modal(SupportTicketModal("blinx"))
+    
+    @disnake.ui.button(label="Discord Server Issue", style=disnake.ButtonStyle.green, emoji="🛡️", custom_id="discord_support")
+    async def discord_support(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
+        await inter.response.send_modal(SupportTicketModal("discord"))
+    
+    @disnake.ui.button(label="Private Room Help", style=disnake.ButtonStyle.red, emoji="🎙️", custom_id="pr_support")
+    async def pr_support(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
+        pr_guide_embed = disnake.Embed(
+            title="🎙️ PRIVATE ROOM SUPPORT",
+            description="Before submitting a ticket, please check these common issues:",
+            color=disnake.Color.blue()
+        )
+        
+        pr_guide_embed.add_field(
+            name="❓ Common Questions",
+            value="```\n• Get Channel ID: Right-click → Copy ID\n• Not owner? Use /transfer_pr\n• Check balance: /balance\n• Pricing: /pr_guides\n```",
+            inline=False
+        )
+        
+        pr_guide_embed.add_field(
+            name="🚨 Urgent Issues",
+            value="```\n• Channel disappeared → Admin abuse\n• Wrong money deducted → Technical error\n• Cannot delete → Check ownership\n```",
+            inline=False
+        )
+        
+        pr_guide_embed.add_field(
+            name="📞 Need More Help?",
+            value="If your issue isn't listed above, click **Discord Server Issue** button",
+            inline=False
+        )
+        
+        await inter.response.send_message(embed=pr_guide_embed, ephemeral=True)
+
+@bot.slash_command(name="support", description="Setup support system (Admin only)")
+@commands.has_permissions(administrator=True)
+async def support_setup(inter):
+    try:
+        if not inter.channel.permissions_for(inter.guild.me).send_messages:
+            error_embed = disnake.Embed(
+                description="❌ Bot doesn't have permission to send messages here",
+                color=disnake.Color.red()
+            )
+            await inter.response.send_message(embed=error_embed, ephemeral=True)
+            return
+        
+        support_embed = disnake.Embed(
+            title="🛡️ BLINX SUPPORT SYSTEM",
+            description="Need help? Choose the appropriate support option below:",
+            color=disnake.Color.blurple(),
+            timestamp=datetime.datetime.now()
+        )
+        
+        support_embed.add_field(
+            name="🌐 BLINX PLATFORM ISSUES",
+            value="• Account problems\n• Blinks transactions\n• Website access\n• Profile issues\n• Withdrawal problems",
+            inline=True
+        )
+        
+        support_embed.add_field(
+            name="🛡️ DISCORD SERVER ISSUES",
+            value="• Bot commands\n• Cash system\n• Permissions\n• Rule violations\n• Moderation issues",
+            inline=True
+        )
+        
+        support_embed.add_field(
+            name="🎙️ PRIVATE ROOM HELP",
+            value="• Creation problems\n• Ownership transfer\n• Deletion issues\n• Pricing questions\n• Access problems",
+            inline=True
+        )
+        
+        support_embed.add_field(
+            name="📝 TICKET GUIDELINES",
+            value="```\n✓ Provide detailed description\n✓ Include relevant IDs\n✓ Mention what you've tried\n✓ One ticket per issue\n✓ 1 hour cooldown between tickets\n✓ Tickets sent to support channel\n```",
+            inline=False
+        )
+        
+        support_embed.add_field(
+            name="⏱️ RESPONSE TIME",
+            value="• **Normal**: Within 24 hours\n• **Urgent**: Within 6 hours\n• **Critical**: Within 1 hour\n• **Location**: <#1456677723022950533>",
+            inline=False
+        )
+        
+        support_embed.set_footer(
+            text=f"Support system | Managed by {inter.author.name}",
+            icon_url=inter.author.display_avatar.url
+        )
+        
+        view = SupportButtonView()
+        
+        await inter.response.send_message("🛡️ Setting up support system...", ephemeral=True)
+        await inter.channel.send(embed=support_embed, view=view)
+        
+        await bot.log_moderation(f"🛡️ Support system setup by {inter.author.mention} in #{inter.channel.name}")
+        
+    except Exception as e:
+        error_embed = disnake.Embed(
+            description=f"❌ Error: {str(e)}",
+            color=disnake.Color.red()
+        )
+        await inter.response.send_message(embed=error_embed, ephemeral=True)
+
+@support_setup.error
+async def support_setup_error(inter, error):
+    if isinstance(error, commands.MissingPermissions):
+        embed = disnake.Embed(
+            description="❌ Administrator permission required",
+            color=disnake.Color.red()
+        )
+        await inter.response.send_message(embed=embed, ephemeral=True)
+    else:
+        embed = disnake.Embed(
+            description=f"❌ Unexpected error: {error}",
+            color=disnake.Color.red()
+        )
+        await inter.response.send_message(embed=embed, ephemeral=True)
 
 @addcash.error
 @removecash.error
@@ -1347,5 +1676,4 @@ async def admin_error(inter, error):
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
 
-
-bot.run("your_token_here")
+bot.run(TOKEN)

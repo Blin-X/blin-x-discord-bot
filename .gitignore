@@ -1,0 +1,14 @@
+# Secrets
+.env
+*.env
+config.py
+
+# Database
+*.db
+data/
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db
