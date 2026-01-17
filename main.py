@@ -13,7 +13,7 @@ load_dotenv()
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 if not TOKEN:
-    raise ValueError("❌ DISCORD_BOT_TOKEN not found in environment variables")
+    raise ValueError("Токен не найден")
 
 intents = disnake.Intents.default()
 intents.members = True
@@ -63,6 +63,17 @@ class EconomyBot(commands.Bot):
             )
         """
         )
+        await self.db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tickets (
+                ticket_id TEXT PRIMARY KEY,
+                user_id INTEGER,
+                channel_id INTEGER,
+                created_at TIMESTAMP,
+                status TEXT DEFAULT 'open'
+            )
+        """
+        )
         await self.db.commit()
 
     @tasks.loop(minutes=30)
@@ -95,11 +106,11 @@ class EconomyBot(commands.Bot):
             channel = self.get_channel(self.log_channels["economy"])
             if channel:
                 embed = disnake.Embed(
-                    description=f"💰 Admin action: `{amount}` cash added to <@{user_id}>",
-                    color=disnake.Color.green(),
+                    description=f"Админ действие: `{amount}` наличных добавлено <@{user_id}>",
+                    color=0x6A0DAD,
                     timestamp=datetime.datetime.now(),
                 )
-                embed.set_footer(text=f"User ID: {user_id}")
+                embed.set_footer(text=f"ID пользователя: {user_id}")
                 await channel.send(embed=embed)
 
     async def remove_cash(self, user_id: int, amount: int, admin: bool = False):
@@ -122,11 +133,11 @@ class EconomyBot(commands.Bot):
             channel = self.get_channel(self.log_channels["economy"])
             if channel:
                 embed = disnake.Embed(
-                    description=f"💰 Admin action: `{amount}` cash removed from <@{user_id}>",
-                    color=disnake.Color.red(),
+                    description=f"Админ действие: `{amount}` наличных удалено у <@{user_id}>",
+                    color=0x6A0DAD,
                     timestamp=datetime.datetime.now(),
                 )
-                embed.set_footer(text=f"User ID: {user_id}")
+                embed.set_footer(text=f"ID пользователя: {user_id}")
                 await channel.send(embed=embed)
 
         return True
@@ -144,7 +155,7 @@ class EconomyBot(commands.Bot):
         if channel:
             embed = disnake.Embed(
                 description=message,
-                color=disnake.Color.green(),
+                color=0x6A0DAD,
                 timestamp=datetime.datetime.now(),
             )
             await channel.send(embed=embed)
@@ -154,7 +165,7 @@ class EconomyBot(commands.Bot):
         if channel:
             embed = disnake.Embed(
                 description=message,
-                color=disnake.Color.blue(),
+                color=0x6A0DAD,
                 timestamp=datetime.datetime.now(),
             )
             await channel.send(embed=embed)
@@ -164,7 +175,7 @@ class EconomyBot(commands.Bot):
         if channel:
             embed = disnake.Embed(
                 description=message,
-                color=disnake.Color.orange(),
+                color=0x6A0DAD,
                 timestamp=datetime.datetime.now(),
             )
             await channel.send(embed=embed)
@@ -185,10 +196,13 @@ bot = EconomyBot()
 
 
 @bot.slash_command(
-    name="check_blinx_community", description="Check community info from Blinx system"
+    name="check_blinx_community",
+    description="Проверить информацию о сообществе из системы Blinx",
 )
 async def check_blinx_community(inter, community_id: str):
-    API_URL = "http://localhost/app/api/communities/"
+    await inter.response.defer()  # ✅ ДОБАВЬТЕ ЭТО
+
+    API_URL = "http://blinx-dev.online/app/api/communities/"
 
     async with aiohttp.ClientSession() as session:
         try:
@@ -200,10 +214,12 @@ async def check_blinx_community(inter, community_id: str):
 
                     if not data.get("success"):
                         embed = disnake.Embed(
-                            description=f"❌ Error: {data.get('error', 'Unknown error')}",
+                            description=f"Ошибка: {data.get('error', 'Неизвестная ошибка')}",
                             color=disnake.Color.red(),
                         )
-                        await inter.response.send_message(embed=embed, ephemeral=True)
+                        await inter.edit_original_response(
+                            embed=embed
+                        ) 
                         return
 
                     community = data["data"]
@@ -211,7 +227,7 @@ async def check_blinx_community(inter, community_id: str):
                     embed = disnake.Embed(
                         title=f"🏘️ {community['name']}",
                         url=community["urls"]["profile"],
-                        color=disnake.Color.green(),
+                        color=0x6A0DAD,
                         timestamp=datetime.datetime.now(),
                     )
 
@@ -221,31 +237,31 @@ async def check_blinx_community(inter, community_id: str):
                         )
 
                     embed.add_field(
-                        name="📊 STATS",
-                        value=f"**Members:** `{community['stats']['members']:,}`\n**Posts:** `{community['stats']['posts']:,}`",
+                        name="📊 СТАТИСТИКА",
+                        value=f"**Участники:** `{community['stats']['members']:,}`\n**Посты:** `{community['stats']['posts']:,}`",
                         inline=True,
                     )
 
                     status_text = []
                     if community["status"]["is_verified"]:
-                        status_text.append("✅ Verified")
+                        status_text.append("✅ Проверено")
 
                     if community["visibility"]["is_private"]:
-                        status_text.append("🔒 Private")
+                        status_text.append("🔒 Приватное")
                     else:
-                        status_text.append("🔓 Public")
+                        status_text.append("🔓 Публичное")
 
                     if community["visibility"]["is_public_feed"]:
-                        status_text.append("📢 Public Feed")
+                        status_text.append("📢 Публичная лента")
 
                     embed.add_field(
-                        name="🔍 STATUS",
-                        value="\n".join(status_text) if status_text else "Standard",
+                        name="🔍 СТАТУС",
+                        value="\n".join(status_text) if status_text else "Стандартное",
                         inline=True,
                     )
 
                     embed.add_field(
-                        name="👑 CREATOR",
+                        name="👑 СОЗДАТЕЛЬ",
                         value=f"**{community['creator']['display_name']}**\n`@{community['creator']['username']}`",
                         inline=False,
                     )
@@ -259,11 +275,11 @@ async def check_blinx_community(inter, community_id: str):
 
                         if len(community["admins"]) > 5:
                             admins_text.append(
-                                f"... and {len(community['admins']) - 5} more"
+                                f"... и еще {len(community['admins']) - 5}"
                             )
 
                         embed.add_field(
-                            name=f"🛡️ ADMIN TEAM ({len(community['admins'])})",
+                            name=f"🛡️ КОМАНДА АДМИНОВ ({len(community['admins'])})",
                             value="\n".join(admins_text),
                             inline=False,
                         )
@@ -274,7 +290,7 @@ async def check_blinx_community(inter, community_id: str):
                             posts_text.append(f"• {post['content_preview']}")
 
                         embed.add_field(
-                            name="📝 RECENT POSTS",
+                            name="📝 ПОСЛЕДНИЕ ПОСТЫ",
                             value="\n".join(posts_text),
                             inline=False,
                         )
@@ -285,155 +301,162 @@ async def check_blinx_community(inter, community_id: str):
                     age_days = (datetime.datetime.now() - created_date).days
 
                     embed.add_field(
-                        name="📅 CREATED",
-                        value=f"`{created_date.strftime('%Y-%m-%d')}`\n({age_days} days ago)",
+                        name="📅 СОЗДАНО",
+                        value=f"`{created_date.strftime('%Y-%m-%d')}`\n({age_days} дней назад)",
                         inline=True,
                     )
 
                     embed.add_field(
-                        name="🔗 PROFILE",
-                        value=f"[Open on Blinx]({community['urls']['profile']})",
+                        name="🔗 ПРОФИЛЬ",
+                        value=f"[Открыть в Blinx]({community['urls']['profile']})",
                         inline=True,
                     )
 
                     if community["avatar_url"]:
                         embed.set_thumbnail(url=community["avatar_url"])
 
-                    embed.set_footer(text=f"Community ID: {community_id}")
-                    await inter.response.send_message(embed=embed)
+                    embed.set_footer(text=f"ID сообщества: {community_id}")
+                    await inter.edit_original_response(
+                        embed=embed
+                    ) 
 
                 else:
                     embed = disnake.Embed(
-                        description="❌ Failed to fetch community data",
+                        description="Не удалось получить данные сообщества",
                         color=disnake.Color.red(),
                     )
-                    await inter.response.send_message(embed=embed, ephemeral=True)
+                    await inter.edit_original_response(
+                        embed=embed
+                    ) 
 
         except asyncio.TimeoutError:
             embed = disnake.Embed(
-                description="⏱️ Request timeout", color=disnake.Color.orange()
+                description="Таймаут запроса", color=disnake.Color.orange()
             )
-            await inter.response.send_message(embed=embed, ephemeral=True)
+            await inter.edit_original_response(
+                embed=embed
+            ) 
 
         except Exception as e:
             embed = disnake.Embed(
-                description=f"❌ Error: {str(e)[:200]}", color=disnake.Color.red()
+                description=f"Ошибка: {str(e)[:200]}", color=disnake.Color.red()
             )
-            await inter.response.send_message(embed=embed, ephemeral=True)
+            await inter.edit_original_response(
+                embed=embed
+            ) 
 
 
-@bot.slash_command(name="help", description="Show all available commands")
+@bot.slash_command(name="help", description="Показать все доступные команды")
 async def help_command(inter):
     embed = disnake.Embed(
-        title="🔧 BLINX BOT COMMANDS",
-        description="**Economy & Finance**",
-        color=disnake.Color.blue(),
+        title="🔧 КОМАНДЫ BLINX БОТА",
+        description="**Экономика и финансы**",
+        color=0x6A0DAD,
         timestamp=datetime.datetime.now(),
     )
 
     economy_commands = """
-    **💳 Balance**
-    `/balance` - Check your cash balance
+    **💳 Баланс**
+    `/balance` - Проверить баланс наличных
 
-    **🎁 Daily Reward**
-    `/daily` - Claim daily cash reward
+    **🎁 Ежедневная награда**
+    `/daily` - Получить ежедневную награду
 
-    **💼 Work**
-    `/work` - Work to earn cash (1h cooldown)
+    **💼 Работа**
+    `/work` - Работать для заработка наличных (перезарядка 1 час)
 
-    **🔄 Withdraw**
-    `/withdraw <amount> <blinx_id>` - Convert cash to Blinks
-    *Rate: 1 Blink = 100 cash*
+    **🔄 Вывод**
+    `/withdraw <amount> <blinx_id>` - Конвертировать наличные в Blinks
+    *Курс: 1 Blink = 100 наличных*
 
-    **🏆 Leaderboard**
-    `/leaderboard` - Top 10 richest users
+    **🏆 Таблица лидеров**
+    `/leaderboard` - Топ 10 самых богатых пользователей
     """
 
-    embed.add_field(name="💰 ECONOMY SYSTEM", value=economy_commands, inline=False)
+    embed.add_field(name="💰 СИСТЕМА ЭКОНОМИКИ", value=economy_commands, inline=False)
 
     private_rooms = """
-    **🔒 Create Private Room**
+    **🔒 Создать приватную комнату**
     `/create_pr <channel_name> <user_limit>`
-    *Prices:*
-    • ≤2 users: 1,500 cash
-    • ≤8 users: 2,500 cash
-    • ≤15 users: 5,000 cash
-    • Unlimited: 10,000 cash
+    *Цены:*
+    • ≤2 пользователей: 1,500 наличных
+    • ≤8 пользователей: 2,500 наличных
+    • ≤15 пользователей: 5,000 наличных
+    • Без ограничений: 10,000 наличных
 
-    **🗑️ Delete Private Room**
-    `/delete_pr <channel_id>` - Delete your private channel
+    **🗑️ Удалить приватную комнату**
+    `/delete_pr <channel_id>` - Удалить ваш приватный канал
 
-    **🔑 Transfer Ownership**
-    `/transfer_pr <channel_id> <new_owner>` - Transfer channel ownership
-    """
-
-    embed.add_field(name="🎙️ PRIVATE VOICE CHANNELS", value=private_rooms, inline=False)
-
-    admin_commands = """
-    **➕ Add Cash**
-    `/addcash <user> <amount>` - Admin only
-
-    **➖ Remove Cash**
-    `/removecash <user> <amount>` - Admin only
-
-    **⚙️ Set Exchange Rate**
-    `/setrate <rate>` - Owner only
-
-    **🔄 Reset Cooldown**
-    `/resetcooldown <user>` - Owner only
-
-    **📊 Economy Stats**
-    `/economystats` - Owner only
-    """
-
-    embed.add_field(name="👑 ADMIN COMMANDS", value=admin_commands, inline=False)
-
-    blinx_system = """
-    **👤 Check User**
-    `/blinx_check <user_id>` - Get user info from BlinX
-
-    **🏘️ Check Community**
-    `/check_blinx_community <community_id>` - Get community info
-
-    **🌐 System Status**
-    `/blinx_status` - Check BlinX website status
+    **🔑 Передать владение**
+    `/transfer_pr <channel_id> <new_owner>` - Передать владение каналом
     """
 
     embed.add_field(
-        name="🔗 BLINX SYSTEM INTEGRATION", value=blinx_system, inline=False
+        name="🎙️ ПРИВАТНЫЕ ГОЛОСОВЫЕ КАНАЛЫ", value=private_rooms, inline=False
+    )
+
+    admin_commands = """
+    **➕ Добавить наличные**
+    `/addcash <user> <amount>` - Только для админов
+
+    **➖ Удалить наличные**
+    `/removecash <user> <amount>` - Только для админов
+
+    **⚙️ Установить курс обмена**
+    `/setrate <rate>` - Только для владельца
+
+    **🔄 Сбросить перезарядку**
+    `/resetcooldown <user>` - Только для владельца
+
+    **📊 Статистика экономики**
+    `/economystats` - Только для владельца
+    """
+
+    embed.add_field(
+        name="👑 КОМАНДЫ АДМИНИСТРАТОРА", value=admin_commands, inline=False
+    )
+
+    blinx_system = """
+    **👤 Проверить пользователя**
+    `/blinx_check <user_id>` - Получить информацию о пользователе из BlinX
+
+    **🏘️ Проверить сообщество**
+    `/check_blinx_community <community_id>` - Получить информацию о сообществе
+
+    **🌐 Статус системы**
+    `/blinx_status` - Проверить статус сайта BlinX
+    """
+
+    embed.add_field(
+        name="🔗 ИНТЕГРАЦИЯ С СИСТЕМОЙ BLINX", value=blinx_system, inline=False
     )
 
     features = """
-    **🛡️ Auto-Moderation**
-    • Automatic blacklisted word filtering
-    • Message deletion & warnings
-    • Logging to moderation channel
+    **🛡️ Авто-модерация**
+    • Автоматическая фильтрация запрещенных слов
+    • Удаление сообщений и предупреждения
+    • Логирование в канал модерации
 
-    **📊 Logging System**
-    • Economy transactions
-    • User joins/leaves/bans
-    • Channel & role changes
-    • Moderation actions
-
-    **⚙️ Settings**
-    • Exchange rate: 1 Blink = 100 cash
-    • Daily cooldown: 24 hours
-    • Work cooldown: 1 hour
+    **📊 Система логирования**
+    • Экономические транзакции
+    • Вход/выход/бан пользователей
+    • Изменения каналов и ролей
+    • Действия модерации
     """
 
-    embed.add_field(name="⚡ FEATURES", value=features, inline=False)
+    embed.add_field(name="⚡ ФУНКЦИИ", value=features, inline=False)
 
     embed.set_footer(
-        text=f"Requested by {inter.author.name}",
+        text=f"Запрошено {inter.author.name}",
         icon_url=inter.author.display_avatar.url,
     )
 
     await inter.response.send_message(embed=embed, ephemeral=True)
 
 
-@bot.slash_command(name="blinx_status", description="Check BlinX website status")
+@bot.slash_command(name="blinx_status", description="Проверить статус сайта BlinX")
 async def blinx_status(inter):
-    API_URL = "https://blin-x.space/"
+    API_URL = "https://blinx-dev.online/"
 
     async with aiohttp.ClientSession() as session:
         try:
@@ -444,75 +467,71 @@ async def blinx_status(inter):
                 response_time = (end_time - start_time).total_seconds() * 1000
 
                 status_emoji = "✅" if response.status == 200 else "❌"
-                status_text = "ONLINE" if response.status == 200 else "OFFLINE"
-                color = (
-                    disnake.Color.green()
-                    if response.status == 200
-                    else disnake.Color.red()
-                )
+                status_text = "ОНЛАЙН" if response.status == 200 else "ОФФЛАЙН"
+                color = 0x6A0DAD if response.status == 200 else disnake.Color.red()
 
                 embed = disnake.Embed(
-                    title=f"{status_emoji} BLINX STATUS - {status_text}",
+                    title=f"{status_emoji} СТАТУС BLINX - {status_text}",
                     color=color,
                     timestamp=datetime.datetime.now(),
                 )
 
                 embed.add_field(
-                    name="🌐 WEBSITE", value=f"[blin-x.space]({API_URL})", inline=True
+                    name="🌐 САЙТ", value=f"[blinx-dev.online]({API_URL})", inline=True
                 )
 
                 embed.add_field(
-                    name="📊 STATUS CODE", value=f"`{response.status}`", inline=True
+                    name="📊 КОД СТАТУСА", value=f"`{response.status}`", inline=True
                 )
 
                 embed.add_field(
-                    name="⚡ RESPONSE TIME",
-                    value=f"`{response_time:.0f}ms`",
+                    name="⚡ ВРЕМЯ ОТВЕТА",
+                    value=f"`{response_time:.0f}мс`",
                     inline=True,
                 )
 
                 if response.status != 200:
                     embed.add_field(
-                        name="⚠️ ALERT",
-                        value="Website is experiencing issues",
+                        name="⚠️ ВНИМАНИЕ",
+                        value="Сайт испытывает проблемы",
                         inline=False,
                     )
 
-                embed.set_footer(text=f"Checked at {end_time.strftime('%H:%M:%S')}")
+                embed.set_footer(text=f"Проверено в {end_time.strftime('%H:%M:%S')}")
 
                 await inter.response.send_message(embed=embed)
 
         except asyncio.TimeoutError:
             embed = disnake.Embed(
-                title="⏱️ BLINX STATUS - TIMEOUT",
-                description="Website took too long to respond",
+                title="⏱️ СТАТУС BLINX - ТАЙМАУТ",
+                description="Сайт слишком долго отвечал",
                 color=disnake.Color.orange(),
                 timestamp=datetime.datetime.now(),
             )
             embed.add_field(
-                name="🌐 WEBSITE", value="[blin-x.space](https://blin-x.space/)"
+                name="🌐 САЙТ", value="[blinx-dev.online](https://blinx-dev.online/)"
             )
-            embed.add_field(name="⚡ RESPONSE TIME", value="> 10 seconds")
-            embed.set_footer(text="Connection timeout")
+            embed.add_field(name="⚡ ВРЕМЯ ОТВЕТА", value="> 10 секунд")
+            embed.set_footer(text="Таймаут соединения")
             await inter.response.send_message(embed=embed)
 
         except Exception as e:
             embed = disnake.Embed(
-                title="❌ BLINX STATUS - ERROR",
-                description="Could not check website status",
+                title="❌ СТАТУС BLINX - ОШИБКА",
+                description="Не удалось проверить статус сайта",
                 color=disnake.Color.red(),
                 timestamp=datetime.datetime.now(),
             )
             embed.add_field(
-                name="🌐 WEBSITE", value="[blin-x.space](https://blin-x.space/)"
+                name="🌐 САЙТ", value="[blinx-dev.online](https://blinx-dev.online/)"
             )
-            embed.add_field(name="❓ ERROR", value=str(e)[:100])
+            embed.add_field(name="❓ ОШИБКА", value=str(e)[:100])
             await inter.response.send_message(embed=embed)
 
 
 @tasks.loop(minutes=3)
 async def update_presence():
-    API_URL = "http://localhost/app/api/ulpc"
+    API_URL = "http://blinx-dev.online/app/api/ulpc"
 
     try:
         async with aiohttp.ClientSession() as session:
@@ -526,10 +545,10 @@ async def update_presence():
                         posts_count = stats["posts"]
 
                         statuses = [
-                            f"👥 {users_count:,} users",
-                            f"📝 {posts_count:,} posts",
+                            f"👥 {users_count:,} пользователей",
+                            f"📝 {posts_count:,} постов",
                             "/help • BlinX",
-                            f"🪙 1:100 rate",
+                            f"🪙 1:100 курс",
                         ]
 
                         current_status = statuses[
@@ -537,11 +556,11 @@ async def update_presence():
                         ]
 
                         activity_type = disnake.ActivityType.watching
-                        if "users" in current_status:
+                        if "пользователей" in current_status:
                             activity_type = disnake.ActivityType.watching
-                        elif "posts" in current_status:
+                        elif "постов" in current_status:
                             activity_type = disnake.ActivityType.watching
-                        elif "rate" in current_status:
+                        elif "курс" in current_status:
                             activity_type = disnake.ActivityType.watching
                         else:
                             activity_type = disnake.ActivityType.playing
@@ -554,14 +573,12 @@ async def update_presence():
                             activity=activity, status=disnake.Status.online
                         )
 
-                        print(f"Presence updated: {current_status}")
-
     except Exception as e:
         fallback_statuses = [
-            "BlinX Economy",
+            "BlinX Экономика",
             "/withdraw • 1:100",
-            "💎 Premium Features",
-            "🎮 BlinX Gaming",
+            "💎 Премиум функции",
+            "🎮 BlinX Игры",
         ]
 
         current_fallback = fallback_statuses[
@@ -578,22 +595,22 @@ async def update_presence():
 
 @bot.event
 async def on_ready():
-    print(f"✅ Logged in as {bot.user}")
-    print(f"🔗 Connected to {len(bot.guilds)} guilds")
-    print(f"👥 Serving {len(bot.users)} users")
+    print(f"Бот {bot.user} запущен")
+    print(f"Подключен к {len(bot.guilds)} серверам")
+    print(f"Обслуживает {len(bot.users)} пользователей")
 
     await update_presence.start()
 
 
 @bot.event
 async def on_member_join(member):
-    await bot.log_user(f"👤 Member joined: {member.mention}")
+    await bot.log_user(f"Пользователь присоединился: {member.mention}")
 
     welcome_channel = bot.get_channel(1456676376630395025)
     if welcome_channel:
         welcome_embed = disnake.Embed(
-            description=f"🎉 {member.mention} joined the server!",
-            color=disnake.Color.green(),
+            description=f"🎉 {member.mention} присоединился к серверу!",
+            color=0x6A0DAD,
             timestamp=datetime.datetime.now(),
         )
 
@@ -605,12 +622,14 @@ async def on_member_join(member):
 
 @bot.event
 async def on_member_remove(member):
-    await bot.log_user(f"👤 Member left: {member.name}#{member.discriminator}")
+    await bot.log_user(
+        f"Пользователь покинул сервер: {member.name}#{member.discriminator}"
+    )
 
     welcome_channel = bot.get_channel(1456676376630395025)
     if welcome_channel:
         goodbye_embed = disnake.Embed(
-            description=f"👋 {member.name} left the server",
+            description=f"👋 {member.name} покинул сервер",
             color=disnake.Color.red(),
             timestamp=datetime.datetime.now(),
         )
@@ -628,17 +647,17 @@ async def on_message(message):
         if word in content_lower:
             await message.delete()
             warning = await message.channel.send(
-                f"{message.author.mention} Watch your language!", delete_after=3
+                f"{message.author.mention} Следите за языком!", delete_after=3
             )
             await bot.log_moderation(
-                f"🚫 Auto-mod: {message.author.mention} used blacklisted word in {message.channel.mention}"
+                f"Авто-мод: {message.author.mention} использовал запрещенное слово в {message.channel.mention}"
             )
             break
 
     await bot.process_commands(message)
 
 
-@bot.slash_command(name="create_pr", description="Create private voice channel")
+@bot.slash_command(name="create_pr", description="Создать приватный голосовой канал")
 async def create_pr(inter, channel_name: str, user_limit: int = 0):
     user_id = inter.author.id
     cash = await bot.get_cash(user_id)
@@ -656,7 +675,7 @@ async def create_pr(inter, channel_name: str, user_limit: int = 0):
 
     if cash < price:
         embed = disnake.Embed(
-            description=f"❌ Insufficient funds. Required: **{price}** cash",
+            description=f"Недостаточно средств. Требуется: **{price}** наличных",
             color=disnake.Color.red(),
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
@@ -664,7 +683,7 @@ async def create_pr(inter, channel_name: str, user_limit: int = 0):
 
     if len(channel_name) > 32:
         embed = disnake.Embed(
-            description="❌ Channel name too long (max 32 characters)",
+            description="Название канала слишком длинное (максимум 32 символа)",
             color=disnake.Color.red(),
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
@@ -672,7 +691,7 @@ async def create_pr(inter, channel_name: str, user_limit: int = 0):
 
     if len(channel_name) < 3:
         embed = disnake.Embed(
-            description="❌ Channel name too short (min 3 characters)",
+            description="Название канала слишком короткое (минимум 3 символа)",
             color=disnake.Color.red(),
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
@@ -707,41 +726,45 @@ async def create_pr(inter, channel_name: str, user_limit: int = 0):
         )
         await bot.db.commit()
 
-        limit_text = f"{user_limit} users" if user_limit > 0 else "Unlimited"
+        limit_text = (
+            f"{user_limit} пользователей" if user_limit > 0 else "Без ограничений"
+        )
 
         embed = disnake.Embed(
-            title="✅ PRIVATE CHANNEL CREATED",
-            description=f"**Channel:** {channel.mention}\n**Price paid:** {price} cash",
-            color=disnake.Color.green(),
+            title="✅ ПРИВАТНЫЙ КАНАЛ СОЗДАН",
+            description=f"**Канал:** {channel.mention}\n**Оплачено:** {price} наличных",
+            color=0x6A0DAD,
         )
-        embed.add_field(name="OWNER", value=inter.author.mention, inline=True)
-        embed.add_field(name="USER LIMIT", value=limit_text, inline=True)
-        embed.add_field(name="CHANNEL ID", value=f"`{channel.id}`", inline=True)
+        embed.add_field(name="ВЛАДЕЛЕЦ", value=inter.author.mention, inline=True)
+        embed.add_field(name="ЛИМИТ ПОЛЬЗОВАТЕЛЕЙ", value=limit_text, inline=True)
+        embed.add_field(name="ID КАНАЛА", value=f"`{channel.id}`", inline=True)
         embed.set_footer(
-            text="Use /delete_pr to delete or /transfer_pr to transfer ownership"
+            text="Используйте /delete_pr для удаления или /transfer_pr для передачи владения"
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
 
         await bot.log_economy(
-            f"🔒 Private channel created: {inter.author.mention} ({inter.author.id}) - {channel_name} - {price} cash"
+            f"Приватный канал создан: {inter.author.mention} ({inter.author.id}) - {channel_name} - {price} наличных"
         )
 
     except Exception as e:
         await bot.add_cash(user_id, price)
         embed = disnake.Embed(
-            description="❌ Failed to create channel. Refund issued.",
+            description="Не удалось создать канал. Средства возвращены.",
             color=disnake.Color.red(),
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
 
 
-@bot.slash_command(name="delete_pr", description="Delete your private voice channel")
+@bot.slash_command(
+    name="delete_pr", description="Удалить ваш приватный голосовой канал"
+)
 async def delete_pr(inter, channel_id: str):
     try:
         channel = bot.get_channel(int(channel_id))
         if not channel:
             embed = disnake.Embed(
-                description="❌ Channel not found", color=disnake.Color.red()
+                description="Канал не найден", color=disnake.Color.red()
             )
             await inter.response.send_message(embed=embed, ephemeral=True)
             return
@@ -753,7 +776,7 @@ async def delete_pr(inter, channel_id: str):
 
         if not row:
             embed = disnake.Embed(
-                description="❌ This is not a registered private channel",
+                description="Это не зарегистрированный приватный канал",
                 color=disnake.Color.red(),
             )
             await inter.response.send_message(embed=embed, ephemeral=True)
@@ -761,7 +784,7 @@ async def delete_pr(inter, channel_id: str):
 
         if row[0] != inter.author.id:
             embed = disnake.Embed(
-                description="❌ You are not the owner of this channel",
+                description="Вы не владелец этого канала",
                 color=disnake.Color.red(),
             )
             await inter.response.send_message(embed=embed, ephemeral=True)
@@ -775,35 +798,37 @@ async def delete_pr(inter, channel_id: str):
         await bot.db.commit()
 
         embed = disnake.Embed(
-            title="✅ CHANNEL DELETED",
-            description=f"Private channel **{channel.name}** has been deleted",
-            color=disnake.Color.green(),
+            title="✅ КАНАЛ УДАЛЕН",
+            description=f"Приватный канал **{channel.name}** был удален",
+            color=0x6A0DAD,
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
 
         await bot.log_economy(
-            f"🗑️ Private channel deleted: {inter.author.mention} - {channel.name}"
+            f"Приватный канал удален: {inter.author.mention} - {channel.name}"
         )
 
     except ValueError:
         embed = disnake.Embed(
-            description="❌ Invalid channel ID", color=disnake.Color.red()
+            description="Неверный ID канала", color=disnake.Color.red()
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
     except Exception as e:
         embed = disnake.Embed(
-            description="❌ Failed to delete channel", color=disnake.Color.red()
+            description="Не удалось удалить канал", color=disnake.Color.red()
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
 
 
-@bot.slash_command(name="transfer_pr", description="Transfer private channel ownership")
+@bot.slash_command(
+    name="transfer_pr", description="Передать владение приватным каналом"
+)
 async def transfer_pr(inter, channel_id: str, new_owner: disnake.Member):
     try:
         channel = bot.get_channel(int(channel_id))
         if not channel:
             embed = disnake.Embed(
-                description="❌ Channel not found", color=disnake.Color.red()
+                description="Канал не найден", color=disnake.Color.red()
             )
             await inter.response.send_message(embed=embed, ephemeral=True)
             return
@@ -815,7 +840,7 @@ async def transfer_pr(inter, channel_id: str, new_owner: disnake.Member):
 
         if not row:
             embed = disnake.Embed(
-                description="❌ This is not a registered private channel",
+                description="Это не зарегистрированный приватный канал",
                 color=disnake.Color.red(),
             )
             await inter.response.send_message(embed=embed, ephemeral=True)
@@ -823,7 +848,7 @@ async def transfer_pr(inter, channel_id: str, new_owner: disnake.Member):
 
         if row[0] != inter.author.id:
             embed = disnake.Embed(
-                description="❌ You are not the owner of this channel",
+                description="Вы не владелец этого канала",
                 color=disnake.Color.red(),
             )
             await inter.response.send_message(embed=embed, ephemeral=True)
@@ -831,7 +856,7 @@ async def transfer_pr(inter, channel_id: str, new_owner: disnake.Member):
 
         if new_owner.bot:
             embed = disnake.Embed(
-                description="❌ Cannot transfer to bot", color=disnake.Color.red()
+                description="Нельзя передать боту", color=disnake.Color.red()
             )
             await inter.response.send_message(embed=embed, ephemeral=True)
             return
@@ -859,35 +884,35 @@ async def transfer_pr(inter, channel_id: str, new_owner: disnake.Member):
         await bot.db.commit()
 
         embed = disnake.Embed(
-            title="✅ OWNERSHIP TRANSFERRED",
-            description=f"**Channel:** {channel.mention}\n**New owner:** {new_owner.mention}",
-            color=disnake.Color.green(),
+            title="✅ ВЛАДЕНИЕ ПЕРЕДАНО",
+            description=f"**Канал:** {channel.mention}\n**Новый владелец:** {new_owner.mention}",
+            color=0x6A0DAD,
         )
-        embed.set_footer(text=f"Transferred by {inter.author.name}")
+        embed.set_footer(text=f"Передано {inter.author.name}")
         await inter.response.send_message(embed=embed, ephemeral=True)
 
         try:
             notify_embed = disnake.Embed(
-                title="🔑 PRIVATE CHANNEL TRANSFERRED",
-                description=f"You are now the owner of **{channel.name}**\n**Previous owner:** {inter.author.mention}\n**Channel ID:** `{channel.id}`",
-                color=disnake.Color.blue(),
+                title="🔑 ВЛАДЕНИЕ ПРИВАТНЫМ КАНАЛОМ ПЕРЕДАНО",
+                description=f"Теперь вы владелец **{channel.name}**\n**Предыдущий владелец:** {inter.author.mention}\n**ID канала:** `{channel.id}`",
+                color=0x6A0DAD,
             )
             await new_owner.send(embed=notify_embed)
         except:
             pass
 
         await bot.log_economy(
-            f"🔄 Ownership transferred: {channel.name} - {inter.author.mention} → {new_owner.mention}"
+            f"Владение передано: {channel.name} - {inter.author.mention} → {new_owner.mention}"
         )
 
     except ValueError:
         embed = disnake.Embed(
-            description="❌ Invalid channel ID", color=disnake.Color.red()
+            description="Неверный ID канала", color=disnake.Color.red()
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
     except Exception as e:
         embed = disnake.Embed(
-            description="❌ Failed to transfer ownership", color=disnake.Color.red()
+            description="Не удалось передать владение", color=disnake.Color.red()
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
 
@@ -918,9 +943,11 @@ async def setup_db_tables():
     await bot.db.commit()
 
 
-@bot.slash_command(name="blinx_check", description="Check user info from Blinx system")
+@bot.slash_command(name="blinx_check", description="Проверить информацию о пользователе из системы Blinx")
 async def blinx_check(inter, user_id: str):
-    API_URL = "http://localhost/app/api/users"
+    await inter.response.defer() 
+    
+    API_URL = "http://blinx-dev.online/app/api/users"
 
     async with aiohttp.ClientSession() as session:
         try:
@@ -930,61 +957,61 @@ async def blinx_check(inter, user_id: str):
 
                     if not data.get("success"):
                         embed = disnake.Embed(
-                            description=f"❌ Error: {data.get('error', 'Unknown error')}",
+                            description=f"Ошибка: {data.get('error', 'Неизвестная ошибка')}",
                             color=disnake.Color.red(),
                         )
-                        await inter.response.send_message(embed=embed, ephemeral=True)
+                        await inter.edit_original_response(embed=embed)
                         return
 
                     user = data["data"]
 
                     embed = disnake.Embed(
-                        title="🔍 BLINX USER INFO",
+                        title="🔍 ИНФОРМАЦИЯ О ПОЛЬЗОВАТЕЛЕ BLINX",
                         url=user["profile_url"],
-                        color=disnake.Color.blue(),
+                        color=0x6A0DAD,
                         timestamp=datetime.datetime.now(),
                     )
 
                     embed.add_field(
-                        name="IDENTITY",
-                        value=f"**ID:** `{user['id']}`\n**Username:** `{user['username']}`\n**Display:** {user['display_name']}",
+                        name="ИДЕНТИФИКАЦИЯ",
+                        value=f"**ID:** `{user['id']}`\n**Имя пользователя:** `{user['username']}`\n**Отображаемое имя:** {user['display_name']}",
                         inline=False,
                     )
 
                     status_text = []
                     if user["status"]["is_active"]:
-                        status_text.append("🟢 Active")
+                        status_text.append("🟢 Активен")
                     else:
-                        status_text.append("🔴 Inactive")
+                        status_text.append("🔴 Неактивен")
 
                     if user["status"]["is_verified"]:
-                        status_text.append("✅ Verified")
+                        status_text.append("✅ Проверен")
 
                     if user["status"]["is_banned"]:
-                        status_text.append("🔨 Banned")
+                        status_text.append("🔨 Забанен")
 
                     if user["status"]["has_premium"]:
-                        status_text.append("💎 Premium")
+                        status_text.append("💎 Премиум")
 
                     embed.add_field(
-                        name="STATUS", value="\n".join(status_text), inline=True
+                        name="СТАТУС", value="\n".join(status_text), inline=True
                     )
 
                     roles_text = []
                     if user["status"]["is_moderator"]:
-                        roles_text.append("🛡️ Moderator")
+                        roles_text.append("🛡️ Модератор")
                     if user["status"]["is_admin"]:
-                        roles_text.append("👑 Admin")
+                        roles_text.append("👑 Админ")
                     if user["status"]["is_employee"]:
-                        roles_text.append("💼 Employee")
+                        roles_text.append("💼 Сотрудник")
 
                     if roles_text:
                         embed.add_field(
-                            name="ROLES", value="\n".join(roles_text), inline=True
+                            name="РОЛИ", value="\n".join(roles_text), inline=True
                         )
 
                     embed.add_field(
-                        name="ECONOMY",
+                        name="ЭКОНОМИКА",
                         value=f"**Blinks:** `{user['economy']['blinks']:,}`",
                         inline=False,
                     )
@@ -997,57 +1024,57 @@ async def blinx_check(inter, user_id: str):
                             user["dates"]["last_login"].replace("Z", "+00:00")
                         ).strftime("%Y-%m-%d %H:%M")
                         if user["dates"]["last_login"]
-                        else "Never"
+                        else "Никогда"
                     )
 
                     embed.add_field(
-                        name="DATES",
-                        value=f"**Created:** `{created_date}`\n**Last login:** `{last_login}`",
+                        name="ДАТЫ",
+                        value=f"**Создан:** `{created_date}`\n**Последний вход:** `{last_login}`",
                         inline=False,
                     )
 
                     if user["status"]["is_banned"] and user["moderation"]["ban_reason"]:
                         embed.add_field(
-                            name="BAN INFO",
-                            value=f"**Reason:** {user['moderation']['ban_reason']}\n**Until:** {user['dates']['banned_until']}",
+                            name="ИНФОРМАЦИЯ О БАНЕ",
+                            value=f"**Причина:** {user['moderation']['ban_reason']}\n**До:** {user['dates']['banned_until']}",
                             inline=False,
                         )
 
                     if user["bio"]:
                         embed.add_field(
-                            name="BIO",
+                            name="БИО",
                             value=user["bio"][:200]
                             + ("..." if len(user["bio"]) > 200 else ""),
                             inline=False,
                         )
 
                     embed.add_field(
-                        name="PROFILE",
-                        value=f"[View on Blinx]({user['profile_url']})",
+                        name="ПРОФИЛЬ",
+                        value=f"[Посмотреть в Blinx]({user['profile_url']})",
                         inline=False,
                     )
 
                     embed.set_footer(text=f"Blinx ID: {user_id}")
-                    await inter.response.send_message(embed=embed)
+                    await inter.edit_original_response(embed=embed) 
 
                 else:
                     embed = disnake.Embed(
-                        description="❌ API connection failed",
+                        description="Не удалось подключиться к API",
                         color=disnake.Color.red(),
                     )
-                    await inter.response.send_message(embed=embed, ephemeral=True)
+                    await inter.edit_original_response(embed=embed)
 
         except asyncio.TimeoutError:
             embed = disnake.Embed(
-                description="❌ API request timeout", color=disnake.Color.red()
+                description="Таймаут запроса API", color=disnake.Color.red()
             )
-            await inter.response.send_message(embed=embed, ephemeral=True)
+            await inter.edit_original_response(embed=embed)
 
         except Exception as e:
             embed = disnake.Embed(
-                description=f"❌ Error: {str(e)}", color=disnake.Color.red()
+                description=f"Ошибка: {str(e)}", color=disnake.Color.red()
             )
-            await inter.response.send_message(embed=embed, ephemeral=True)
+            await inter.edit_original_response(embed=embed) 
 
 
 @bot.event
@@ -1060,65 +1087,67 @@ async def on_connect():
 
 @bot.event
 async def on_member_join(member):
-    await bot.log_user(f"👤 Member joined: {member.mention}")
+    await bot.log_user(f"Пользователь присоединился: {member.mention}")
 
 
 @bot.event
 async def on_member_remove(member):
-    await bot.log_user(f"👤 Member left: {member.name}#{member.discriminator}")
+    await bot.log_user(f"Пользователь покинул: {member.name}#{member.discriminator}")
 
 
 @bot.event
 async def on_member_ban(guild, user):
-    await bot.log_user(f"🔨 Member banned: {user.name}#{user.discriminator}")
+    await bot.log_user(f"Пользователь забанен: {user.name}#{user.discriminator}")
 
 
 @bot.event
 async def on_guild_channel_create(channel):
-    await bot.log_moderation(f"📝 Channel created: {channel.name}")
+    await bot.log_moderation(f"Канал создан: {channel.name}")
 
 
 @bot.event
 async def on_guild_channel_delete(channel):
-    await bot.log_moderation(f"📝 Channel deleted: {channel.name}")
+    await bot.log_moderation(f"Канал удален: {channel.name}")
 
 
 @bot.event
 async def on_guild_role_create(role):
-    await bot.log_moderation(f"🎭 Role created: {role.name}")
+    await bot.log_moderation(f"Роль создана: {role.name}")
 
 
 @bot.event
 async def on_guild_role_delete(role):
-    await bot.log_moderation(f"🎭 Role deleted: {role.name}")
+    await bot.log_moderation(f"Роль удалена: {role.name}")
 
 
 @bot.event
 async def on_guild_role_update(before, after):
     if before.name != after.name:
-        await bot.log_moderation(f"🎭 Role renamed: `{before.name}` → `{after.name}`")
+        await bot.log_moderation(
+            f"Роль переименована: `{before.name}` → `{after.name}`"
+        )
 
 
-@bot.slash_command(name="balance", description="Check your cash balance")
+@bot.slash_command(name="balance", description="Проверить баланс наличных")
 async def balance(inter):
     cash = await bot.get_cash(inter.author.id)
     embed = disnake.Embed(
-        title="💳 Balance",
-        description=f"You have **{cash}** cash",
-        color=disnake.Color.purple(),
+        title="💳 Баланс",
+        description=f"У вас **{cash}** наличных",
+        color=0x6A0DAD,
     )
     embed.set_thumbnail(url=inter.author.display_avatar.url)
-    embed.set_footer(text=f"1 Blink = {bot.exchange_rate} cash")
+    embed.set_footer(text=f"1 Blink = {bot.exchange_rate} наличных")
     await inter.response.send_message(embed=embed, ephemeral=True)
 
 
-@bot.slash_command(name="daily", description="Claim your daily reward")
+@bot.slash_command(name="daily", description="Получить ежедневную награду")
 async def daily(inter):
     user_id = inter.author.id
 
     if not await bot.check_cooldown(user_id, "daily", 86400):
         embed = disnake.Embed(
-            description="Come back tomorrow for your daily reward!",
+            description="Возвращайтесь завтра за ежедневной наградой!",
             color=disnake.Color.red(),
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
@@ -1128,22 +1157,24 @@ async def daily(inter):
     await bot.add_cash(user_id, reward)
 
     embed = disnake.Embed(
-        title="🎁 Daily Reward",
-        description=f"Claimed **{reward}** cash",
-        color=disnake.Color.gold(),
+        title="🎁 Ежедневная награда",
+        description=f"Получено **{reward}** наличных",
+        color=0x6A0DAD,
     )
-    embed.set_footer(text="Available again in 24 hours")
+    embed.set_footer(text="Доступно снова через 24 часа")
     await inter.response.send_message(embed=embed)
-    await bot.log_economy(f"🎁 Daily: {inter.author.mention} got {reward} cash")
+    await bot.log_economy(
+        f"Ежедневная награда: {inter.author.mention} получил {reward} наличных"
+    )
 
 
-@bot.slash_command(name="work", description="Work to earn cash")
+@bot.slash_command(name="work", description="Работать для заработка наличных")
 async def work(inter):
     user_id = inter.author.id
 
     if not await bot.check_cooldown(user_id, "work", 3600):
         embed = disnake.Embed(
-            description="Take a break! 1 hour cooldown remaining.",
+            description="Сделайте перерыв! Перезарядка 1 час.",
             color=disnake.Color.red(),
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
@@ -1153,29 +1184,31 @@ async def work(inter):
     await bot.add_cash(user_id, earnings)
 
     embed = disnake.Embed(
-        title="💼 Work Completed",
-        description=f"Earned **{earnings}** cash",
-        color=disnake.Color.dark_green(),
+        title="💼 Работа завершена",
+        description=f"Заработано **{earnings}** наличных",
+        color=0x6A0DAD,
     )
     await inter.response.send_message(embed=embed)
-    await bot.log_economy(f"💼 Work: {inter.author.mention} earned {earnings} cash")
+    await bot.log_economy(
+        f"Работа: {inter.author.mention} заработал {earnings} наличных"
+    )
 
 
-@bot.slash_command(name="withdraw", description="Withdraw cash to Blinks")
+@bot.slash_command(name="withdraw", description="Вывести наличные в Blinks")
 async def withdraw(inter, amount: int, blinks_id: str):
     user_id = inter.author.id
     cash = await bot.get_cash(user_id)
 
     if cash < amount:
         embed = disnake.Embed(
-            description="❌ Insufficient funds", color=disnake.Color.red()
+            description="Недостаточно средств", color=disnake.Color.red()
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
         return
 
     if amount < bot.exchange_rate:
         embed = disnake.Embed(
-            description=f"❌ Minimum withdrawal: {bot.exchange_rate} cash",
+            description=f"Минимальный вывод: {bot.exchange_rate} наличных",
             color=disnake.Color.red(),
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
@@ -1187,106 +1220,113 @@ async def withdraw(inter, amount: int, blinks_id: str):
     channel = bot.get_channel(bot.withdraw_channel)
     if channel:
         embed = disnake.Embed(
-            title="🔄 WITHDRAWAL REQUEST",
-            color=disnake.Color.blue(),
+            title="🔄 ЗАПРОС НА ВЫВОД",
+            color=0x6A0DAD,
             timestamp=datetime.datetime.now(),
         )
         embed.add_field(
-            name="USER",
+            name="ПОЛЬЗОВАТЕЛЬ",
             value=f"{inter.author.mention}\n`{inter.author.id}`",
             inline=False,
         )
         embed.add_field(name="BLINX ID", value=f"`{blinks_id}`", inline=False)
         embed.add_field(
-            name="AMOUNT", value=f"**{blinks}** Blinks\n`{amount}` cash", inline=False
-        )
-        embed.add_field(
-            name="EXCHANGE RATE",
-            value=f"1 Blink = {bot.exchange_rate} cash",
+            name="СУММА",
+            value=f"**{blinks}** Blinks\n`{amount}` наличных",
             inline=False,
         )
-        embed.set_footer(text="Withdrawal request • Contact user within 12h")
+        embed.add_field(
+            name="КУРС ОБМЕНА",
+            value=f"1 Blink = {bot.exchange_rate} наличных",
+            inline=False,
+        )
+        embed.set_footer(
+            text="Запрос на вывод • Свяжитесь с пользователем в течение 12ч"
+        )
         await channel.send(embed=embed)
 
     embed = disnake.Embed(
-        title="✅ WITHDRAWAL INITIATED",
-        description=f"**Amount:** {blinks} Blinks\n**Cash deducted:** {amount}",
-        color=disnake.Color.green(),
+        title="✅ ВЫВОД ИНИЦИИРОВАН",
+        description=f"**Сумма:** {blinks} Blinks\n**Списано наличных:** {amount}",
+        color=0x6A0DAD,
     )
     embed.add_field(name="BLINX ID", value=f"`{blinks_id}`", inline=False)
     embed.add_field(
-        name="PROCESSING TIME",
-        value="Within **12 hours** funds will be credited to your Blinks account or admin will contact you via DM for clarification.",
+        name="ВРЕМЯ ОБРАБОТКИ",
+        value="В течение **12 часов** средства будут зачислены на ваш аккаунт Blinks или администратор свяжется с вами через ЛС для уточнения.",
         inline=False,
     )
-    embed.set_footer(text="Do not submit duplicate requests")
+    embed.set_footer(text="Не отправляйте повторные запросы")
     await inter.response.send_message(embed=embed, ephemeral=True)
 
     await bot.log_economy(
-        f"🔄 Withdrawal: {inter.author.mention} ({inter.author.id}) → BlinX ID: `{blinks_id}` - {blinks} Blinks"
+        f"Вывод: {inter.author.mention} ({inter.author.id}) → BlinX ID: `{blinks_id}` - {blinks} Blinks"
     )
 
 
-@bot.slash_command(name="addcash", description="Add cash to user")
+@bot.slash_command(name="addcash", description="Добавить наличные пользователю")
 @commands.has_permissions(administrator=True)
 async def addcash(inter, user: disnake.User, amount: int):
     await bot.add_cash(user.id, amount, admin=True)
 
     embed = disnake.Embed(
-        title="✅ Cash Added",
-        description=f"Added **{amount}** cash to {user.mention}",
-        color=disnake.Color.green(),
+        title="✅ Наличные добавлены",
+        description=f"Добавлено **{amount}** наличных пользователю {user.mention}",
+        color=0x6A0DAD,
     )
     await inter.response.send_message(embed=embed, ephemeral=True)
 
 
-@bot.slash_command(name="removecash", description="Remove cash from user")
+@bot.slash_command(name="removecash", description="Удалить наличные у пользователя")
 @commands.has_permissions(administrator=True)
 async def removecash(inter, user: disnake.User, amount: int):
     success = await bot.remove_cash(user.id, amount, admin=True)
 
     if success:
         embed = disnake.Embed(
-            title="✅ Cash Removed",
-            description=f"Removed **{amount}** cash from {user.mention}",
-            color=disnake.Color.red(),
+            title="✅ Наличные удалены",
+            description=f"Удалено **{amount}** наличных у пользователя {user.mention}",
+            color=0x6A0DAD,
         )
     else:
         embed = disnake.Embed(
-            description="User not found in database", color=disnake.Color.red()
+            description="Пользователь не найден в базе данных",
+            color=disnake.Color.red(),
         )
 
     await inter.response.send_message(embed=embed, ephemeral=True)
 
 
-@bot.slash_command(name="leaderboard", description="Top 10 richest users")
+@bot.slash_command(name="leaderboard", description="Топ 10 самых богатых пользователей")
 async def leaderboard(inter):
     async with bot.db.execute(
         "SELECT user_id, cash FROM economy ORDER BY cash DESC LIMIT 10"
     ) as cursor:
         rows = await cursor.fetchall()
 
-    embed = disnake.Embed(title="🏆 Leaderboard", color=disnake.Color.dark_purple())
+    embed = disnake.Embed(title="🏆 Таблица лидеров", color=0x6A0DAD)
 
     description = ""
     for idx, (user_id, cash) in enumerate(rows, 1):
         user = bot.get_user(user_id) or await bot.fetch_user(user_id)
         medal = ["🥇", "🥈", "🥉"][idx - 1] if idx <= 3 else f"{idx}."
-        description += f"{medal} {user.mention} - **{cash}** cash\n"
+        description += f"{medal} {user.mention} - **{cash}** наличных\n"
 
     if not description:
-        description = "No users found"
+        description = "Пользователи не найдены"
 
     embed.description = description
-    embed.set_footer(text="Total economy leaderboard")
+    embed.set_footer(text="Общая таблица лидеров экономики")
     await inter.response.send_message(embed=embed)
 
 
-@bot.slash_command(name="setrate", description="Set exchange rate (Owner only)")
+@bot.slash_command(
+    name="setrate", description="Установить курс обмена (только для владельца)"
+)
 async def setrate(inter, rate: int):
     if inter.author.id != OWNER_ID:
         embed = disnake.Embed(
-            description="This command is restricted to the bot owner",
+            description="Эта команда доступна только владельцу бота",
             color=disnake.Color.red(),
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
@@ -1294,7 +1334,7 @@ async def setrate(inter, rate: int):
 
     if rate < 1:
         embed = disnake.Embed(
-            description="Rate must be at least 1", color=disnake.Color.red()
+            description="Курс должен быть не менее 1", color=disnake.Color.red()
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
         return
@@ -1303,28 +1343,31 @@ async def setrate(inter, rate: int):
     bot.exchange_rate = rate
 
     embed = disnake.Embed(
-        title="✅ Exchange Rate Updated",
-        description=f"Changed from `{old_rate}` to `{rate}`\n1 Blink = {rate} cash",
-        color=disnake.Color.green(),
+        title="✅ Курс обмена обновлен",
+        description=f"Изменено с `{old_rate}` на `{rate}`\n1 Blink = {rate} наличных",
+        color=0x6A0DAD,
     )
     await inter.response.send_message(embed=embed, ephemeral=True)
 
     channel = bot.get_channel(bot.log_channels["economy"])
     if channel:
         log_embed = disnake.Embed(
-            description=f"📊 Exchange rate changed: `{old_rate}` → `{rate}`",
-            color=disnake.Color.gold(),
+            description=f"Курс обмена изменен: `{old_rate}` → `{rate}`",
+            color=0x6A0DAD,
             timestamp=datetime.datetime.now(),
         )
-        log_embed.set_footer(text=f"Changed by {inter.author.name}")
+        log_embed.set_footer(text=f"Изменено {inter.author.name}")
         await channel.send(embed=log_embed)
 
 
-@bot.slash_command(name="resetcooldown", description="Reset user cooldown (Owner only)")
+@bot.slash_command(
+    name="resetcooldown",
+    description="Сбросить перезарядку пользователя (только для владельца)",
+)
 async def resetcooldown(inter, user: disnake.User):
     if inter.author.id != OWNER_ID:
         embed = disnake.Embed(
-            description="This command is restricted to the bot owner",
+            description="Эта команда доступна только владельцу бота",
             color=disnake.Color.red(),
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
@@ -1337,20 +1380,21 @@ async def resetcooldown(inter, user: disnake.User):
         del bot.cooldowns[key]
 
     embed = disnake.Embed(
-        title="✅ Cooldowns Reset",
-        description=f"Reset all cooldowns for {user.mention}",
-        color=disnake.Color.green(),
+        title="✅ Перезарядки сброшены",
+        description=f"Сброшены все перезарядки для {user.mention}",
+        color=0x6A0DAD,
     )
     await inter.response.send_message(embed=embed, ephemeral=True)
 
 
 @bot.slash_command(
-    name="economystats", description="View economy statistics (Owner only)"
+    name="economystats",
+    description="Просмотреть статистику экономики (только для владельца)",
 )
 async def economystats(inter):
     if inter.author.id != OWNER_ID:
         embed = disnake.Embed(
-            description="This command is restricted to the bot owner",
+            description="Эта команда доступна только владельцу бота",
             color=disnake.Color.red(),
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
@@ -1362,94 +1406,97 @@ async def economystats(inter):
     total_users = row[0] if row else 0
     total_cash = row[1] if row and row[1] else 0
 
-    embed = disnake.Embed(title="📊 Economy Statistics", color=disnake.Color.blue())
-    embed.add_field(name="Total Users", value=f"`{total_users}`", inline=True)
-    embed.add_field(name="Total Cash", value=f"`{total_cash}`", inline=True)
+    embed = disnake.Embed(title="📊 Статистика экономики", color=0x6A0DAD)
+    embed.add_field(name="Всего пользователей", value=f"`{total_users}`", inline=True)
+    embed.add_field(name="Всего наличных", value=f"`{total_cash}`", inline=True)
     embed.add_field(
-        name="Exchange Rate", value=f"1 Blink = `{bot.exchange_rate}` cash", inline=True
+        name="Курс обмена",
+        value=f"1 Blink = `{bot.exchange_rate}` наличных",
+        inline=True,
     )
     embed.add_field(
-        name="Active Cooldowns", value=f"`{len(bot.cooldowns)}`", inline=True
+        name="Активные перезарядки", value=f"`{len(bot.cooldowns)}`", inline=True
     )
     embed.add_field(
-        name="Blacklisted Words", value=f"`{len(bot.blacklisted_words)}`", inline=True
+        name="Запрещенные слова", value=f"`{len(bot.blacklisted_words)}`", inline=True
     )
 
     await inter.response.send_message(embed=embed, ephemeral=True)
 
 
 @bot.slash_command(
-    name="pr_guides", description="Post PR guides in channel (Admin only)"
+    name="pr_guides",
+    description="Опубликовать руководства по PR в канале (только для админов)",
 )
 @commands.has_permissions(administrator=True)
 async def pr_guides(inter):
     try:
         if not inter.channel.permissions_for(inter.guild.me).send_messages:
             error_embed = disnake.Embed(
-                description="❌ Bot doesn't have permission to send messages here",
+                description="У бота нет разрешения отправлять сообщения здесь",
                 color=disnake.Color.red(),
             )
             await inter.response.send_message(embed=error_embed, ephemeral=True)
             return
 
         guide_embed = disnake.Embed(
-            title="🎙️ PRIVATE VOICE CHANNELS - OFFICIAL GUIDE",
-            description="Complete guide to creating and managing private voice channels",
-            color=disnake.Color.gold(),
+            title="🎙️ ПРИВАТНЫЕ ГОЛОСОВЫЕ КАНАЛЫ - ОФИЦИАЛЬНОЕ РУКОВОДСТВО",
+            description="Полное руководство по созданию и управлению приватными голосовыми каналами",
+            color=0x6A0DAD,
             timestamp=datetime.datetime.now(),
         )
 
         guide_embed.add_field(
-            name="💰 PRICING SYSTEM",
-            value="```\n• 1-2 users: 1,500 cash\n• 3-8 users: 2,500 cash\n• 9-15 users: 5,000 cash\n• Unlimited: 10,000 cash\n```",
+            name="💰 СИСТЕМА ЦЕНООБРАЗОВАНИЯ",
+            value="```\n• 1-2 пользователя: 1,500 наличных\n• 3-8 пользователей: 2,500 наличных\n• 9-15 пользователей: 5,000 наличных\n• Без ограничений: 10,000 наличных\n```",
             inline=False,
         )
 
         guide_embed.add_field(
-            name="🔧 CREATING A PRIVATE ROOM",
-            value="```/create_pr channel_name user_limit```\n**Examples:**\n• `/create_pr Gaming 5` → 5 users (2,500 cash)\n• `/create_pr Chill 0` → Unlimited users (10,000 cash)\n• `/create_pr Meeting 2` → 2 users (1,500 cash)",
+            name="🔧 СОЗДАНИЕ ПРИВАТНОЙ КОМНАТЫ",
+            value="```/create_pr название_канала лимит_пользователей```\n**Примеры:**\n• `/create_pr Игры 5` → 5 пользователей (2,500 наличных)\n• `/create_pr Отдых 0` → Без ограничений (10,000 наличных)\n• `/create_pr Встреча 2` → 2 пользователя (1,500 наличных)",
             inline=False,
         )
 
         guide_embed.add_field(
-            name="🆔 HOW TO GET CHANNEL ID",
-            value="```\n1. Enable Developer Mode:\n   Settings → Advanced → Developer Mode\n\n2. Right-click voice channel\n3. Click 'Copy ID'\n```\n**Save your Channel ID!**",
+            name="🆔 КАК ПОЛУЧИТЬ ID КАНАЛА",
+            value="```\n1. Включите режим разработчика:\n   Настройки → Дополнительно → Режим разработчика\n\n2. Щелкните правой кнопкой по голосовому каналу\n3. Нажмите 'Копировать ID'\n```\n**Сохраните ваш ID канала!**",
             inline=False,
         )
 
         guide_embed.add_field(
-            name="⚙️ MANAGEMENT COMMANDS",
-            value="```\n• /delete_pr 123456789012345678\n   → Delete your channel (owner only)\n\n• /transfer_pr 123456789012345678 @User\n   → Transfer ownership to another user\n```",
+            name="⚙️ КОМАНДЫ УПРАВЛЕНИЯ",
+            value="```\n• /delete_pr 123456789012345678\n   → Удалить ваш канал (только владелец)\n\n• /transfer_pr 123456789012345678 @Пользователь\n   → Передать владение другому пользователю\n```",
             inline=False,
         )
 
         guide_embed.add_field(
-            name="📝 IMPORTANT NOTES",
-            value="```\n✓ Check balance: /balance\n✓ Unlimited = user_limit: 0\n✓ Channel ID is required for management\n✓ No refunds after creation\n✓ Technical issues → Contact admins\n```",
+            name="📝 ВАЖНЫЕ ЗАМЕЧАНИЯ",
+            value="```\n✓ Проверьте баланс: /balance\n✓ Без ограничений = лимит: 0\n✓ ID канала требуется для управления\n✓ Возврата средств после создания нет\n✓ Технические проблемы → Свяжитесь с админами\n```",
             inline=False,
         )
 
         guide_embed.add_field(
-            name="💡 PRO TIPS",
-            value="```\n• Choose name wisely (no spaces)\n• Backup your Channel ID\n• Consider user needs when setting limit\n• Transfer to trusted users only\n```",
+            name="💡 ПРОФЕССИОНАЛЬНЫЕ СОВЕТЫ",
+            value="```\n• Выбирайте имя с умом (без пробелов)\n• Сохраняйте ваш ID канала\n• Учитывайте потребности пользователей при установке лимита\n• Передавайте только доверенным пользователям\n```",
             inline=False,
         )
 
         guide_embed.set_footer(
-            text=f"Posted by {inter.author.name}",
+            text=f"Опубликовано {inter.author.name}",
             icon_url=inter.author.display_avatar.url,
         )
 
-        await inter.response.send_message("📖 Sending guide...", ephemeral=True)
+        await inter.response.send_message("📖 Отправка руководства...", ephemeral=True)
         await inter.channel.send(embed=guide_embed)
 
         await bot.log_moderation(
-            f"📖 PR guide posted by {inter.author.mention} in #{inter.channel.name}"
+            f"Руководство по PR опубликовано {inter.author.mention} в #{inter.channel.name}"
         )
 
     except Exception as e:
         error_embed = disnake.Embed(
-            description=f"❌ Error: {str(e)}", color=disnake.Color.red()
+            description=f"Ошибка: {str(e)}", color=disnake.Color.red()
         )
         await inter.response.send_message(embed=error_embed, ephemeral=True)
 
@@ -1458,299 +1505,129 @@ async def pr_guides(inter):
 async def pr_guides_error(inter, error):
     if isinstance(error, commands.MissingPermissions):
         embed = disnake.Embed(
-            description="❌ Administrator permission required",
+            description="Требуется разрешение администратора",
             color=disnake.Color.red(),
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
     else:
         embed = disnake.Embed(
-            description=f"❌ Unexpected error: {error}", color=disnake.Color.red()
+            description=f"Неожиданная ошибка: {error}", color=disnake.Color.red()
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
 
 
-class SupportTicketModal(disnake.ui.Modal):
-    def __init__(self, problem_type):
-        self.problem_type = problem_type
-        components = [
-            disnake.ui.TextInput(
-                label="Describe your problem",
-                placeholder="Please describe the issue in detail...",
-                custom_id="problem_description",
-                style=disnake.TextInputStyle.paragraph,
-                min_length=20,
-                max_length=1000,
-                required=True,
-            ),
-            disnake.ui.TextInput(
-                label="What have you tried?",
-                placeholder="Steps you've already taken to solve the issue...",
-                custom_id="tried_solutions",
-                style=disnake.TextInputStyle.paragraph,
-                max_length=500,
-                required=False,
-            ),
-        ]
-
-        if problem_type == "blinx":
-            components.insert(
-                0,
-                disnake.ui.TextInput(
-                    label="BlinX User ID",
-                    placeholder="Enter your BlinX user ID...",
-                    custom_id="blinx_id",
-                    style=disnake.TextInputStyle.short,
-                    required=True,
-                ),
-            )
-            title = "BlinX Support Ticket"
-        else:
-            components.insert(
-                0,
-                disnake.ui.TextInput(
-                    label="Discord Username",
-                    placeholder="Enter your full Discord username (name#0000)...",
-                    custom_id="discord_username",
-                    style=disnake.TextInputStyle.short,
-                    required=True,
-                ),
-            )
-            title = "Discord Server Support Ticket"
-
-        super().__init__(
-            title=title,
-            custom_id="support_ticket_modal",
-            timeout=300,
-            components=components,
-        )
-
-    async def callback(self, inter: disnake.ModalInteraction):
-        await inter.response.defer(ephemeral=True)
-
-        user_id = inter.author.id
-        key = f"{user_id}_support_ticket"
-        now = datetime.datetime.now()
-
-        if key in bot.cooldowns:
-            if bot.cooldowns[key] > now:
-                remaining = (bot.cooldowns[key] - now).total_seconds()
-                embed = disnake.Embed(
-                    description=f"❌ Please wait {int(remaining)} seconds before submitting another ticket",
-                    color=disnake.Color.red(),
-                )
-                await inter.followup.send(embed=embed, ephemeral=True)
-                return
-
-        bot.cooldowns[key] = now + datetime.timedelta(hours=1)
-
-        values = inter.text_values
-        problem_desc = values.get("problem_description", "")
-        tried_solutions = values.get("tried_solutions", "None mentioned")
-
-        if self.problem_type == "blinx":
-            blinx_id = values.get("blinx_id", "")
-            identifier = f"BlinX ID: `{blinx_id}`"
-        else:
-            discord_username = values.get("discord_username", "")
-            identifier = f"Discord: `{discord_username}`"
-
-        ticket_id = str(inter.id)[:8]
-
-        ticket_embed = disnake.Embed(
-            title="🎫 NEW SUPPORT TICKET",
-            color=disnake.Color.orange(),
-            timestamp=datetime.datetime.now(),
-        )
-
-        ticket_embed.add_field(
-            name="USER",
-            value=f"{inter.author.mention}\n`{inter.author.id}`",
-            inline=True,
-        )
-        ticket_embed.add_field(
-            name="TYPE", value=f"**{self.problem_type.upper()}**", inline=True
-        )
-        ticket_embed.add_field(name="IDENTIFIER", value=identifier, inline=True)
-        ticket_embed.add_field(
-            name="PROBLEM",
-            value=problem_desc[:500] + ("..." if len(problem_desc) > 500 else ""),
-            inline=False,
-        )
-        ticket_embed.add_field(
-            name="ATTEMPTS", value=tried_solutions[:200], inline=False
-        )
-
-        ticket_embed.set_footer(text=f"Ticket ID: {ticket_id}")
-
-        support_channel = bot.get_channel(1456677723022950533)
-        if support_channel:
-            await support_channel.send(embed=ticket_embed)
-
-        confirm_embed = disnake.Embed(
-            title="✅ TICKET SUBMITTED",
-            description="Your support ticket has been received. An admin will contact you soon.",
-            color=disnake.Color.green(),
-        )
-        confirm_embed.add_field(
-            name="Ticket Type", value=self.problem_type.capitalize(), inline=True
-        )
-        confirm_embed.add_field(name="Cooldown", value="1 hour", inline=True)
-        confirm_embed.add_field(name="Ticket ID", value=f"`{ticket_id}`", inline=True)
-
-        await inter.followup.send(embed=confirm_embed, ephemeral=True)
-
-        await bot.log_moderation(
-            f"🎫 Support ticket submitted by {inter.author.mention} ({self.problem_type}) | ID: {ticket_id}"
-        )
-
-
-class SupportButtonView(disnake.ui.View):
+class TicketButtonView(disnake.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
     @disnake.ui.button(
-        label="BlinX Issue",
-        style=disnake.ButtonStyle.blurple,
-        emoji="🌐",
-        custom_id="blinx_support",
+        label="Открыть тикет",
+        style=disnake.ButtonStyle.primary,
+        custom_id="create_ticket",
+        emoji="🎫",
     )
-    async def blinx_support(
+    async def create_ticket_button(
         self, button: disnake.ui.Button, inter: disnake.MessageInteraction
     ):
-        await inter.response.send_modal(SupportTicketModal("blinx"))
-
-    @disnake.ui.button(
-        label="Discord Server Issue",
-        style=disnake.ButtonStyle.green,
-        emoji="🛡️",
-        custom_id="discord_support",
-    )
-    async def discord_support(
-        self, button: disnake.ui.Button, inter: disnake.MessageInteraction
-    ):
-        await inter.response.send_modal(SupportTicketModal("discord"))
-
-    @disnake.ui.button(
-        label="Private Room Help",
-        style=disnake.ButtonStyle.red,
-        emoji="🎙️",
-        custom_id="pr_support",
-    )
-    async def pr_support(
-        self, button: disnake.ui.Button, inter: disnake.MessageInteraction
-    ):
-        pr_guide_embed = disnake.Embed(
-            title="🎙️ PRIVATE ROOM SUPPORT",
-            description="Before submitting a ticket, please check these common issues:",
-            color=disnake.Color.blue(),
-        )
-
-        pr_guide_embed.add_field(
-            name="❓ Common Questions",
-            value="```\n• Get Channel ID: Right-click → Copy ID\n• Not owner? Use /transfer_pr\n• Check balance: /balance\n• Pricing: /pr_guides\n```",
-            inline=False,
-        )
-
-        pr_guide_embed.add_field(
-            name="🚨 Urgent Issues",
-            value="```\n• Channel disappeared → Admin abuse\n• Wrong money deducted → Technical error\n• Cannot delete → Check ownership\n```",
-            inline=False,
-        )
-
-        pr_guide_embed.add_field(
-            name="📞 Need More Help?",
-            value="If your issue isn't listed above, click **Discord Server Issue** button",
-            inline=False,
-        )
-
-        await inter.response.send_message(embed=pr_guide_embed, ephemeral=True)
+        await create_ticket(inter)
 
 
-@bot.slash_command(name="support", description="Setup support system (Admin only)")
-@commands.has_permissions(administrator=True)
-async def support_setup(inter):
+async def create_ticket(inter):
+    ticket_id = f"{inter.author.id}-{int(datetime.datetime.now().timestamp())}"
+    channel_name = f"запрос-{ticket_id[:8]}"
+
+    overwrites = {
+        inter.guild.default_role: disnake.PermissionOverwrite(read_messages=False),
+        inter.author: disnake.PermissionOverwrite(
+            read_messages=True, send_messages=True
+        ),
+        inter.guild.me: disnake.PermissionOverwrite(
+            read_messages=True, send_messages=True, manage_channels=True
+        ),
+    }
+
     try:
-        if not inter.channel.permissions_for(inter.guild.me).send_messages:
-            error_embed = disnake.Embed(
-                description="❌ Bot doesn't have permission to send messages here",
-                color=disnake.Color.red(),
-            )
-            await inter.response.send_message(embed=error_embed, ephemeral=True)
-            return
-
-        support_embed = disnake.Embed(
-            title="🛡️ BLINX SUPPORT SYSTEM",
-            description="Need help? Choose the appropriate support option below:",
-            color=disnake.Color.blurple(),
-            timestamp=datetime.datetime.now(),
+        channel = await inter.guild.create_text_channel(
+            name=channel_name, overwrites=overwrites
         )
 
-        support_embed.add_field(
-            name="🌐 BLINX PLATFORM ISSUES",
-            value="• Account problems\n• Blinks transactions\n• Website access\n• Profile issues\n• Withdrawal problems",
-            inline=True,
+        await bot.db.execute(
+            "INSERT INTO tickets (ticket_id, user_id, channel_id, created_at) VALUES (?, ?, ?, ?)",
+            (ticket_id, inter.author.id, channel.id, datetime.datetime.now()),
         )
+        await bot.db.commit()
 
-        support_embed.add_field(
-            name="🛡️ DISCORD SERVER ISSUES",
-            value="• Bot commands\n• Cash system\n• Permissions\n• Rule violations\n• Moderation issues",
-            inline=True,
+        embed = disnake.Embed(
+            title="Тикет создан",
+            description="Если вас обманули на сервере или в BlinX, или вы хотите получить верификацию или подтвердить покупку премиума, опишите проблему здесь.",
+            color=0x6A0DAD,
         )
-
-        support_embed.add_field(
-            name="🎙️ PRIVATE ROOM HELP",
-            value="• Creation problems\n• Ownership transfer\n• Deletion issues\n• Pricing questions\n• Access problems",
-            inline=True,
+        embed.add_field(name="Тикет ID", value=f"`{ticket_id}`")
+        embed.add_field(
+            name="Создан", value=f"<t:{int(datetime.datetime.now().timestamp())}:R>"
         )
+        embed.set_footer(text="Администратор свяжется с вами в ближайшее время")
 
-        support_embed.add_field(
-            name="📝 TICKET GUIDELINES",
-            value="```\n✓ Provide detailed description\n✓ Include relevant IDs\n✓ Mention what you've tried\n✓ One ticket per issue\n✓ 1 hour cooldown between tickets\n✓ Tickets sent to support channel\n```",
-            inline=False,
+        await channel.send(f"{inter.author.mention}", embed=embed)
+
+        confirm_embed = disnake.Embed(
+            description=f"Тикет создан: {channel.mention}", color=0x6A0DAD
         )
-
-        support_embed.add_field(
-            name="⏱️ RESPONSE TIME",
-            value="• **Normal**: Within 24 hours\n• **Urgent**: Within 6 hours\n• **Critical**: Within 1 hour\n• **Location**: <#1456677723022950533>",
-            inline=False,
-        )
-
-        support_embed.set_footer(
-            text=f"Support system | Managed by {inter.author.name}",
-            icon_url=inter.author.display_avatar.url,
-        )
-
-        view = SupportButtonView()
-
-        await inter.response.send_message(
-            "🛡️ Setting up support system...", ephemeral=True
-        )
-        await inter.channel.send(embed=support_embed, view=view)
-
-        await bot.log_moderation(
-            f"🛡️ Support system setup by {inter.author.mention} in #{inter.channel.name}"
-        )
+        await inter.response.send_message(embed=confirm_embed, ephemeral=True)
 
     except Exception as e:
         error_embed = disnake.Embed(
-            description=f"❌ Error: {str(e)}", color=disnake.Color.red()
+            description="Ошибка при создании тикета", color=disnake.Color.red()
         )
         await inter.response.send_message(embed=error_embed, ephemeral=True)
 
 
-@support_setup.error
-async def support_setup_error(inter, error):
-    if isinstance(error, commands.MissingPermissions):
+@bot.slash_command(name="ticket_setup", description="Настройка системы тикетов")
+@commands.has_permissions(administrator=True)
+async def ticket_setup(inter):
+    embed = disnake.Embed(
+        title="Система поддержки BlinX",
+        description="Если вас обманули на сервере или в BlinX, или вы хотите получить верификацию или подтвердить покупку премиума, нажмите кнопку ниже чтобы открыть тикет.",
+        color=0x6A0DAD,
+    )
+
+    view = TicketButtonView()
+    await inter.channel.send(embed=embed, view=view)
+    await inter.response.send_message("Панель тикетов создана", ephemeral=True)
+
+
+@bot.slash_command(name="close_ticket", description="Закрыть тикет")
+async def close_ticket(inter):
+    async with bot.db.execute(
+        "SELECT ticket_id, user_id FROM tickets WHERE channel_id = ?",
+        (inter.channel.id,),
+    ) as cursor:
+        ticket = await cursor.fetchone()
+
+    if not ticket:
         embed = disnake.Embed(
-            description="❌ Administrator permission required",
+            description="Это не тикет-канал", color=disnake.Color.red()
+        )
+        await inter.response.send_message(embed=embed, ephemeral=True)
+        return
+
+    if (
+        inter.author.id != ticket[1]
+        and not inter.author.guild_permissions.administrator
+    ):
+        embed = disnake.Embed(
+            description="Только автор тикета или администратор может его закрыть",
             color=disnake.Color.red(),
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
-    else:
-        embed = disnake.Embed(
-            description=f"❌ Unexpected error: {error}", color=disnake.Color.red()
-        )
-        await inter.response.send_message(embed=embed, ephemeral=True)
+        return
+
+    await bot.db.execute(
+        "UPDATE tickets SET status = 'closed' WHERE channel_id = ?", (inter.channel.id,)
+    )
+    await bot.db.commit()
+
+    await inter.channel.delete()
 
 
 @addcash.error
@@ -1758,7 +1635,7 @@ async def support_setup_error(inter, error):
 async def admin_error(inter, error):
     if isinstance(error, commands.MissingPermissions):
         embed = disnake.Embed(
-            description="Insufficient permissions", color=disnake.Color.red()
+            description="Недостаточно прав", color=disnake.Color.red()
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
 
